@@ -1,1 +1,201 @@
-Compl
+# Installing libraries
+!pip install Augmentor
+!pip install ultralytics
+#Upload the dataset
+from ultralytics import YOLO
+import os
+import shutil
+import random
+from google.colab import files
+
+# Run this cell, and a file upload button will appear.
+# Select your .zip file (e.g., Braintumords.zip).
+uploaded = files.upload()
+
+# --- FIX ---
+# This code now automatically gets the name of the file you uploaded
+try:
+  # Get the name of the uploaded file (the key in the 'uploaded' dictionary)
+  zip_file_name = list(uploaded.keys())[0]
+  print(f"\nFile '{zip_file_name}' uploaded successfully.")
+
+  # Unzip the dataset using the correct filename
+  !unzip -q "{zip_file_name}" -d brain_tumor_dataset
+  print("Dataset successfully unzipped into the 'brain_tumor_dataset' folder.")
+
+except IndexError:
+  print("⚠️ No file was uploaded. Please run the cell again and select your zip file.")
+# Split the dataset into train,validation,test
+import os
+import shutil
+import glob
+from sklearn.model_selection import train_test_split
+
+# --- Configuration ---
+# Path to the folder containing your class subdirectories (glioma, meningioma, etc.)
+input_folder = '/content/brain_tumor_dataset/Brain Tumor labeled dataset'
+
+# Path where the new YOLO-formatted dataset will be created
+output_folder = 'yolo_brain_tumor_dataset'
+
+# Ratios for splitting the data
+train_ratio = 0.70
+val_ratio = 0.15
+test_ratio = 0.15 # This will be the remainder
+
+# --- Create Output Directories ---
+print("Creating YOLO directory structure...")
+# Define paths for the new structure
+images_path = os.path.join(output_folder, 'images')
+labels_path = os.path.join(output_folder, 'labels')
+
+# Create subdirectories
+for split in ['train', 'val', 'test']:
+    os.makedirs(os.path.join(images_path, split), exist_ok=True)
+    os.makedirs(os.path.join(labels_path, split), exist_ok=True)
+
+# --- Gather and Pair Files ---
+print("Gathering and pairing image and label files...")
+# Find all image files (assuming .jpg, add other extensions if needed e.g., .png)
+image_files = glob.glob(os.path.join(input_folder, '**/*.jpg'), recursive=True)
+
+valid_pairs = []
+for img_path in image_files:
+    # Construct the expected label path by changing the extension
+    label_path = os.path.splitext(img_path)[0] + '.txt'
+
+    # Check if the corresponding label file exists
+    if os.path.exists(label_path):
+        valid_pairs.append((img_path, label_path))
+    else:
+        print(f"Warning: Missing label for {img_path}")
+
+print(f"Found {len(valid_pairs)} valid image-label pairs.")
+
+# --- Split the Data ---
+print("Splitting data into train, validation, and test sets...")
+# First, split into training and a temporary set (val + test)
+train_pairs, val_test_pairs = train_test_split(
+    valid_pairs,
+    test_size=(val_ratio + test_ratio),
+    random_state=42
+)
+
+# Second, split the temporary set into validation and testing sets
+# Adjust the test_size to be proportional to the remaining data
+relative_test_ratio = test_ratio / (val_ratio + test_ratio)
+val_pairs, test_pairs = train_test_split(
+    val_test_pairs,
+    test_size=relative_test_ratio,
+    random_state=42
+)
+
+print(f"Train: {len(train_pairs)}, Validation: {len(val_pairs)}, Test: {len(test_pairs)}")
+
+# --- Copy Files to New Structure ---
+def copy_files(pairs, split_name):
+    """Helper function to copy image-label pairs to the correct destination."""
+    for img_path, label_path in pairs:
+        shutil.copy(img_path, os.path.join(images_path, split_name))
+        shutil.copy(label_path, os.path.join(labels_path, split_name))
+
+print("Copying files to the new YOLO structure...")
+copy_files(train_pairs, 'train')
+copy_files(val_pairs, 'val')
+copy_files(test_pairs, 'test')
+
+print("\nDataset splitting complete! 🚀")
+
+# Create data.yaml for training
+%%writefile /content/yolo_brain_tumor_dataset/data.yaml
+
+# Absolute path to the root directory of your dataset in Google Colab
+path: /content/yolo_brain_tumor_dataset
+
+# Directories for training, validation, and test images (relative to the 'path' above)
+train: images/train
+val: images/val
+test: images/test
+
+# --- Class Definition ---
+# Number of classes
+nc: 4
+
+# Class names in order (0, 1, 2, 3...)
+names:
+  0: glioma
+  1: meningioma
+  2: notumor
+  3: pituitary
+# Train the model
+
+# 1. Import the YOLO class
+from ultralytics import YOLO
+
+# 2. Load a pre-trained model
+# We use 'yolov8n.pt' (nano version) because it's small and fast, perfect for starting.
+model = YOLO('yolov8n.pt')
+
+# 3. Train the model on your custom dataset
+# This command starts the training process.
+results = model.train(
+   data='/content/yolo_brain_tumor_dataset/data.yaml',
+   epochs=30,
+   imgsz=640,
+   batch=16,
+   name='brain_tumor_yolov8n' # A custom name for your training run
+)
+# Testing code
+import os
+import random
+import cv2
+import matplotlib.pyplot as plt
+from ultralytics import YOLO
+
+# --- 1. Load Your Trained Model ---
+model_path = '/content/runs/detect/brain_tumor_yolov8n/weights/best.pt'
+model = YOLO(model_path)
+
+# --- 2. Randomly Select Images for the Grid ---
+test_images_dir = '/content/yolo_brain_tumor_dataset/images/test'
+all_test_images = [os.path.join(test_images_dir, f) for f in os.listdir(test_images_dir) if f.endswith(('.jpg', '.png', '.jpeg'))]
+
+# Define grid size (e.g., 4 rows, 3 columns)
+rows, cols = 4, 3
+num_images = rows * cols
+
+# Ensure there are enough images to fill the grid
+num_to_select = min(num_images, len(all_test_images))
+selected_images = random.sample(all_test_images, num_to_select)
+
+print(f"Running prediction on {num_to_select} randomly selected images for a {rows}x{cols} grid...")
+
+# --- 3. Run Prediction on the Selected Images ---
+results = model.predict(source=selected_images, conf=0.40) # Using a 40% confidence threshold
+
+# --- 4. Create and Display the Image Grid ---
+fig, axes = plt.subplots(rows, cols, figsize=(15, 20))
+# Flatten the axes array for easy iteration
+axes = axes.flatten()
+
+print("\n--- Generating Prediction Grid ---")
+
+# Populate each subplot with a result image
+for i, result in enumerate(results):
+    # Get the image with bounding boxes drawn on it
+    img_with_boxes = result.plot()
+
+    # Convert from BGR (OpenCV) to RGB (Matplotlib) for correct color display
+    img_rgb = cv2.cvtColor(img_with_boxes, cv2.COLOR_BGR2RGB)
+
+    # Display the image in the subplot
+    axes[i].imshow(img_rgb)
+    axes[i].set_title(os.path.basename(result.path)) # Add filename as title
+    axes[i].axis('off') # Hide the axes ticks
+
+# Hide any unused subplots if fewer than 12 images were processed
+for j in range(i + 1, len(axes)):
+    axes[j].axis('off')
+
+plt.tight_layout()
+plt.show()
