@@ -12,9 +12,6 @@ Key Features
 Model Performance
 An interesting finding of this project was that a smaller model (YOLOv8n) outperformed a larger one (YOLOv8s) on this specific dataset, highlighting that bigger isn't always better. The yolov8n model proved to be the most efficient and effective choice.
 
-Model 	Epochs	Test mAP@.50	Training Time 	Conclusion
-YOLOv8n	 30	       93.2%	      ~14 minutes	    Best Model: Highly accurate & efficient.
-YOLOv8s	 100	    ~89.7% (val)	~55 minutes	    No performance gain.
 
 The final yolov8n model's performance on the test set is detailed below:
 
