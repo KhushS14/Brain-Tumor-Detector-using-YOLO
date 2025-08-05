@@ -19,3 +19,7 @@ Precision: 92.6%
 Recall: 87.2%
 mAP50: 93.2%
 <img width="2250" height="1500" alt="BoxPR_curve testing" src="https://github.com/user-attachments/assets/63ec2aa5-73e7-4959-b5fa-223144ff9fbf" />
+
+Testing Ouput
+<img width="1486" height="1990" alt="testing images" src="https://github.com/user-attachments/assets/ae02cc47-cfa1-40ca-9fed-632e44073541" />
+
