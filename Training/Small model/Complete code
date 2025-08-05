@@ -132,70 +132,87 @@ names:
 # 1. Import the YOLO class
 from ultralytics import YOLO
 
-# 2. Load a pre-trained model
-# We use 'yolov8n.pt' (nano version) because it's small and fast, perfect for starting.
-model = YOLO('yolov8n.pt')
+# 2. Load a larger pre-trained model
+# This is the key change: using 'yolov8s.pt' instead of 'yolov8n.pt'
+model = YOLO('yolov8s.pt')
 
-# 3. Train the model on your custom dataset
-# This command starts the training process.
+# 3. Train the model
+# Using a new name to keep results separate from your first run.
 results = model.train(
    data='/content/yolo_brain_tumor_dataset/data.yaml',
-   epochs=30,
+   epochs=100,
    imgsz=640,
    batch=16,
-   name='brain_tumor_yolov8n' # A custom name for your training run
+   name='brain_tumor_yolov8s_run' # New name for the larger model run
 )
-# Testing code
+# Testing on 15 random images
 import os
 import random
 import cv2
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 
-# --- 1. Load Your Trained Model ---
-model_path = '/content/runs/detect/brain_tumor_yolov8n/weights/best.pt'
+# --- 1. Load Your Best Trained Model ---
+# We are using the 'yolov8n' model as it was faster and just as accurate.
+# You can change this path to test your 'yolov8s' model if you wish.
+model_path = '/content/best small model.pt'
 model = YOLO(model_path)
 
-# --- 2. Randomly Select Images for the Grid ---
+# --- 2. Select Random Images from the Test Set ---
 test_images_dir = '/content/yolo_brain_tumor_dataset/images/test'
 all_test_images = [os.path.join(test_images_dir, f) for f in os.listdir(test_images_dir) if f.endswith(('.jpg', '.png', '.jpeg'))]
 
-# Define grid size (e.g., 4 rows, 3 columns)
+# Define grid size (4 rows, 3 columns)
 rows, cols = 4, 3
 num_images = rows * cols
 
-# Ensure there are enough images to fill the grid
+# Ensure there are enough images to select from
 num_to_select = min(num_images, len(all_test_images))
 selected_images = random.sample(all_test_images, num_to_select)
 
-print(f"Running prediction on {num_to_select} randomly selected images for a {rows}x{cols} grid...")
+print(f"Running prediction on {num_to_select} randomly selected test images...")
 
 # --- 3. Run Prediction on the Selected Images ---
-results = model.predict(source=selected_images, conf=0.40) # Using a 40% confidence threshold
+# Using a 40% confidence threshold. You can adjust this value.
+results = model.predict(source=selected_images, conf=0.40)
 
-# --- 4. Create and Display the Image Grid ---
+# --- 4. Create and Display the Output Grid ---
+# Create a figure and a set of subplots
 fig, axes = plt.subplots(rows, cols, figsize=(15, 20))
-# Flatten the axes array for easy iteration
-axes = axes.flatten()
+axes = axes.flatten() # Flatten the 2D array of axes for easy iteration
 
 print("\n--- Generating Prediction Grid ---")
 
-# Populate each subplot with a result image
+# Loop through the results and display each image in a subplot
 for i, result in enumerate(results):
-    # Get the image with bounding boxes drawn on it
+    # Get the image with bounding boxes drawn on it (as a BGR NumPy array)
     img_with_boxes = result.plot()
 
-    # Convert from BGR (OpenCV) to RGB (Matplotlib) for correct color display
+    # Convert from BGR (used by OpenCV) to RGB (used by Matplotlib)
     img_rgb = cv2.cvtColor(img_with_boxes, cv2.COLOR_BGR2RGB)
 
-    # Display the image in the subplot
+    # Display the image
     axes[i].imshow(img_rgb)
-    axes[i].set_title(os.path.basename(result.path)) # Add filename as title
-    axes[i].axis('off') # Hide the axes ticks
+    axes[i].set_title(os.path.basename(result.path)) # Set filename as title
+    axes[i].axis('off') # Hide the x/y axes
 
-# Hide any unused subplots if fewer than 12 images were processed
+# Hide any empty subplots if you have fewer than 12 images
 for j in range(i + 1, len(axes)):
     axes[j].axis('off')
 
 plt.tight_layout()
 plt.show()
+
+# Testing code for test set
+from ultralytics import YOLO
+
+# --- 1. Load Your Trained Model ---
+# Path to your best performing model weights
+model_path = '/content/best small model.pt'
+model = YOLO(model_path)
+
+# --- 2. Run Validation on the Test Set ---
+# Use split='test' to specify the test set from your data.yaml file
+metrics = model.val(split='test', data='/content/yolo_brain_tumor_dataset/data.yaml')
+
+
